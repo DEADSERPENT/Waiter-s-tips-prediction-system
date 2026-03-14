@@ -1,6 +1,7 @@
 """
 Main Pipeline - Complete End-to-End Execution
 Runs the entire tips prediction system pipeline
+(includes hyperparameter tuning and explainability)
 """
 
 import os
@@ -14,6 +15,7 @@ from data_preprocessing import DataPreprocessor
 from model_training import TipPredictor
 from visualization import TipsVisualizer
 from prediction import TipPredictionSystem
+from explainability import TipExplainer
 
 def run_complete_pipeline():
     """
@@ -62,12 +64,13 @@ def run_complete_pipeline():
     
     print("\n✓ EDA visualizations complete!")
     
-    # Step 4: Model Training
+    # Step 4: Model Training (with GridSearchCV hyperparameter tuning)
     print("\n" + "="*70)
-    print("STEP 4: MODEL TRAINING & EVALUATION")
+    print("STEP 4: MODEL TRAINING & EVALUATION (with Hyperparameter Tuning)")
     print("="*70)
     predictor = TipPredictor()
-    results = predictor.train_all_models(X_train, X_test, y_train, y_test)
+    results = predictor.train_all_models(X_train, X_test, y_train, y_test,
+                                         tune=True, cv=5)
     
     # Display comparison
     comparison_df = predictor.display_comparison()
@@ -102,11 +105,31 @@ def run_complete_pipeline():
     print("\n" + "="*70)
     print("STEP 6: DEMO PREDICTIONS")
     print("="*70)
-    
+
     prediction_system = TipPredictionSystem()
     prediction_system.load_model(best_model_name.replace(' ', '_').lower())
     prediction_system.demo_predictions()
-    
+
+    # Step 7: Explainability (SHAP + LIME)
+    print("\n" + "="*70)
+    print("STEP 7: EXPLAINABILITY ANALYSIS (SHAP + LIME)")
+    print("="*70)
+    try:
+        feature_names_xai = ['total_bill', 'sex', 'smoker', 'day', 'time', 'size']
+        explainer = TipExplainer(
+            model         = predictor.best_model,
+            X_train       = X_train,
+            X_test        = X_test,
+            feature_names = feature_names_xai,
+        )
+        explainer.run_all(num_lime_samples_to_explain=3)
+        print("\n✓ Explainability analysis complete!")
+    except ImportError as ie:
+        print(f"\n[Skipping explainability] Missing package: {ie}")
+        print("  Run: pip install shap lime")
+    except Exception as ex:
+        print(f"\n[Explainability error] {ex}")
+
     # Final Summary
     print("\n" + "="*70)
     print("PIPELINE EXECUTION COMPLETE!")
@@ -127,9 +150,10 @@ def run_complete_pipeline():
     
     print("\n🎯 Next Steps:")
     print("  1. Review visualizations in the 'results' folder")
-    print("  2. Check model performance metrics above")
+    print("  2. Check SHAP + LIME plots in 'results/explainability'")
     print("  3. Use prediction.py for interactive predictions")
-    print("  4. Explore the Jupyter notebook for detailed analysis")
+    print("  4. Launch the web app:  streamlit run app.py")
+    print("  5. Explore the Jupyter notebook for detailed analysis")
     
     print("\n" + "="*70)
     print("Thank you for using the Waiter's Tips Prediction System!")
