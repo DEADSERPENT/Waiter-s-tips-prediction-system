@@ -20,6 +20,8 @@ import matplotlib.colors as mcolors
 import seaborn as sns
 import joblib
 import streamlit as st
+import plotly.express as px
+import plotly.graph_objects as go
 
 warnings.filterwarnings('ignore')
 
@@ -39,6 +41,7 @@ st.set_page_config(
     page_icon="◆",
     layout="wide",
     initial_sidebar_state="expanded",
+    menu_items={},
 )
 
 # ── Lucide CDN helper ─────────────────────────────────────────────────────────
@@ -137,22 +140,47 @@ st.markdown("""
 
 [data-testid="stHeader"] { background: transparent !important; border-bottom: var(--rule) !important; }
 
+/* Main content never overlaps sidebar — Streamlit handles the shift via its own
+   sidebar width var; we just ensure smooth transition */
+.main { transition: margin-left 0.3s ease !important; }
 .main .block-container { padding: 2.5rem 3rem 4rem !important; max-width: 1360px !important; }
 
 /* ══════════════════════════════════════════
-   SIDEBAR
+   SIDEBAR  — no scroll, collapses cleanly
 ══════════════════════════════════════════ */
 [data-testid="stSidebar"] {
     background-color: var(--ch) !important;
     border-right: 1px solid var(--ch3) !important;
+}
+/* Lock the inner scroll container so sidebar never scrolls */
+[data-testid="stSidebar"] > div:first-child {
+    overflow-y: hidden !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding-bottom: 1rem !important;
+}
+[data-testid="stSidebarContent"] {
+    overflow-y: hidden !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
 }
 [data-testid="stSidebar"] .stMarkdown p,
 [data-testid="stSidebar"] .stMarkdown span { font-family: var(--font-b) !important; color: var(--iv4) !important; font-size: 0.72rem !important; }
 [data-testid="stSidebar"] .stSelectbox label { font-family: var(--font-b) !important; font-size: 0.6rem !important; font-weight: 600 !important; letter-spacing: 0.2em !important; text-transform: uppercase !important; color: var(--iv5) !important; }
 [data-testid="stSidebar"] [data-baseweb="select"] > div { background-color: var(--ch2) !important; border-color: var(--ch3) !important; border-radius: 0 !important; color: var(--ivory) !important; }
 [data-testid="stSidebar"] [data-baseweb="select"] span { color: var(--iv2) !important; font-family: var(--font-b) !important; font-size: 0.88rem !important; }
-[data-testid="stSidebar"] .stSuccess, [data-testid="stSidebar"] .stWarning { font-family: var(--font-b) !important; font-size: 0.78rem !important; border-radius: 0 !important; }
 [data-testid="stSidebar"] hr { border-top: 1px solid var(--ch3) !important; }
+
+/* ── Sidebar model status card ── */
+.model-card { display: flex; align-items: center; gap: 0.65rem; padding: 0.75rem 1rem; background: var(--ch2); border: 1px solid var(--ch3); border-left: 2px solid var(--gold); margin-top: 0.5rem; }
+.model-card.warn { border-left-color: var(--iv5); }
+.model-card img { flex-shrink: 0; }
+.model-card-name { font-family: var(--font-b); font-size: 0.8rem; font-weight: 600; color: var(--iv2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.model-card-status { font-family: var(--font-b); font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold); margin-top: 0.1rem; }
+.model-card.warn .model-card-status { color: var(--iv5); }
+.sb-footer { font-family: var(--font-b); font-size: 0.6rem; color: var(--iv5); letter-spacing: 0.1em; text-transform: uppercase; padding: 0.75rem 0 0; margin-top: auto; border-top: 1px solid var(--ch3); display: flex; align-items: center; gap: 0.4rem; }
 
 /* ══════════════════════════════════════════
    LUCIDE CDN ICON FILTERS
@@ -347,6 +375,89 @@ hr { border: none !important; border-top: var(--rule) !important; margin: 2rem 0
 .stat-cell { background: #111827; padding: 1.75rem 1.5rem; border-top: 2px solid #D4AF37; }
 .stat-lbl { font-family: 'DM Sans', sans-serif; font-size: 0.58rem; letter-spacing: 0.22em; text-transform: uppercase; color: #4B5563; margin-bottom: 0.5rem; }
 .stat-val { font-family: 'DM Serif Display', Georgia, serif; font-size: 2rem; color: #D4AF37; line-height: 1.1; }
+@media (max-width: 800px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 400px) { .stat-grid { grid-template-columns: 1fr; } }
+
+/* ══════════════════════════════════════════
+   st.pills  — Gold chip buttons
+══════════════════════════════════════════ */
+[data-testid="stPills"] [data-testid="stWidgetLabel"] p {
+    font-family: var(--font-b) !important;
+    font-size: 0.6rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.2em !important;
+    text-transform: uppercase !important;
+    color: var(--iv5) !important;
+    margin-bottom: 0.45rem !important;
+}
+/* Pill chips wrapper */
+[data-testid="stPills"] > div {
+    gap: 0.4rem !important;
+    flex-wrap: wrap !important;
+}
+/* Individual chip */
+[data-testid="stPills"] button {
+    background: #111827 !important;
+    border: 1px solid var(--ch3) !important;
+    border-radius: 2px !important;
+    color: var(--iv4) !important;
+    font-family: var(--font-b) !important;
+    font-size: 0.78rem !important;
+    font-weight: 500 !important;
+    padding: 0.38rem 0.9rem !important;
+    transition: all 0.14s ease !important;
+    letter-spacing: 0.02em !important;
+    cursor: pointer !important;
+}
+[data-testid="stPills"] button:hover {
+    border-color: var(--gold-d) !important;
+    color: var(--iv2) !important;
+    background: rgba(212,175,55,0.06) !important;
+}
+/* Selected chip — gold gradient */
+[data-testid="stPills"] button[aria-pressed="true"],
+[data-testid="stPills"] button[data-selected="true"],
+[data-testid="stPills"] button[aria-selected="true"] {
+    background: linear-gradient(135deg, #D4AF37, #F59E0B) !important;
+    border-color: transparent !important;
+    color: #0B0B0B !important;
+    font-weight: 700 !important;
+    box-shadow: 0 2px 8px rgba(212,175,55,0.35) !important;
+}
+
+/* ══════════════════════════════════════════
+   st.toggle  — Gold track when ON
+══════════════════════════════════════════ */
+[data-testid="stToggle"] [data-testid="stWidgetLabel"] p,
+[data-testid="stToggle"] label p {
+    font-family: var(--font-b) !important;
+    font-size: 0.6rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.2em !important;
+    text-transform: uppercase !important;
+    color: var(--iv5) !important;
+}
+/* OFF track */
+[data-testid="stToggle"] [role="switch"] {
+    background-color: var(--ch3) !important;
+    transition: background 0.2s ease !important;
+    border: none !important;
+}
+/* ON track — gold */
+[data-testid="stToggle"] [role="switch"][aria-checked="true"] {
+    background: linear-gradient(90deg, #D4AF37, #F59E0B) !important;
+}
+/* Thumb (white dot) */
+[data-testid="stToggle"] [role="switch"] > div {
+    background: #F9FAFB !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4) !important;
+}
+/* Value label beside toggle */
+[data-testid="stToggle"] .stMarkdown p {
+    font-family: var(--font-b) !important;
+    font-size: 0.82rem !important;
+    color: var(--iv3) !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -511,15 +622,34 @@ with st.sidebar:
     nav_html += '</nav>'
     st.markdown(nav_html, unsafe_allow_html=True)
 
-    st.markdown("---")
-    selected_model_name = st.selectbox("Model", list(MODEL_FILES.keys()), index=0)
+    st.markdown('<div style="height:1px;background:#374151;margin:0.75rem -1rem;"></div>', unsafe_allow_html=True)
+    selected_model_name = st.selectbox("Active Model", list(MODEL_FILES.keys()), index=0, label_visibility="visible")
     model = load_model(selected_model_name)
     if model:
-        st.success(f"Loaded — {selected_model_name}")
+        st.markdown(
+            f'<div class="model-card">'
+            f'<img src="{_LUCIDE_CDN}/check-circle.svg" width="14" height="14" '
+            f'style="filter:invert(75%) sepia(43%) saturate(612%) hue-rotate(5deg) brightness(95%) contrast(89%);flex-shrink:0;">'
+            f'<div><div class="model-card-name">{selected_model_name}</div>'
+            f'<div class="model-card-status">Ready</div></div></div>',
+            unsafe_allow_html=True,
+        )
     else:
-        st.warning("Model not found. Run main.py first.")
-    st.markdown("---")
-    st.markdown("M.Tech Mini-Project · ML")
+        st.markdown(
+            f'<div class="model-card warn">'
+            f'<img src="{_LUCIDE_CDN}/alert-triangle.svg" width="14" height="14" '
+            f'style="filter:invert(1);opacity:0.4;flex-shrink:0;">'
+            f'<div><div class="model-card-name">Not Found</div>'
+            f'<div class="model-card-status">Run main.py</div></div></div>',
+            unsafe_allow_html=True,
+        )
+    st.markdown(
+        f'<div class="sb-footer">'
+        f'<img src="{_LUCIDE_CDN}/graduation-cap.svg" width="11" height="11" '
+        f'style="filter:invert(1);opacity:0.3;">'
+        f'M.Tech Mini-Project &nbsp;·&nbsp; ML</div>',
+        unsafe_allow_html=True,
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -534,15 +664,27 @@ if page_id == "predict":
 
     with col_form:
         st.markdown(sec_label("sliders-horizontal", "Bill Details"), unsafe_allow_html=True)
-        total_bill = st.slider("Total Bill ($)", min_value=3.0, max_value=55.0, value=20.0, step=0.5)
-        size       = st.slider("Party Size", min_value=1, max_value=6, value=2)
+        total_bill = st.number_input(
+            "Total Bill ($)",
+            min_value=3.0, max_value=1000.0, value=25.00, step=0.50,
+            format="%.2f",
+            help="Enter the exact total bill amount including tax.",
+        )
+        size = st.slider("Party Size", min_value=1, max_value=6, value=2)
         c1, c2 = st.columns(2)
         with c1:
-            sex    = st.selectbox("Gender", ['Male', 'Female'])
-            day    = st.selectbox("Day", ['Thur', 'Fri', 'Sat', 'Sun'])
+            # Pills for multi-option fields
+            _sex = st.pills("Gender", ["Male", "Female"], default="Male", key="sex_pills")
+            sex  = _sex if _sex is not None else "Male"
+
+            _day = st.pills("Day", ["Thur", "Fri", "Sat", "Sun"], default="Sat", key="day_pills")
+            day  = _day if _day is not None else "Sat"
         with c2:
-            smoker = st.selectbox("Smoker", ['No', 'Yes'])
-            time   = st.selectbox("Meal Time", ['Lunch', 'Dinner'])
+            _smk   = st.pills("Smoker",    ["No", "Yes"],           default="No",     key="smoker_pills")
+            smoker = _smk if _smk is not None else "No"
+
+            _time  = st.pills("Meal Time", ["Lunch", "Dinner"],     default="Dinner", key="time_pills")
+            time   = _time if _time is not None else "Dinner"
         predict_btn = st.button("Run Prediction", type="primary", use_container_width=True)
 
     with col_result:
@@ -557,7 +699,7 @@ if page_id == "predict":
                 tip_pct   = (predicted / total_bill) * 100
                 total_amt = total_bill + predicted
 
-                st.toast(f"Prediction complete — ${predicted:.2f} tip", icon="✅")
+                st.toast(f"Prediction complete — ${predicted:.2f} tip")
                 st.markdown(f"""
                 <div class="pred-hero">
                     <div class="pred-eyebrow">Predicted Tip &nbsp;·&nbsp; {selected_model_name}</div>
@@ -635,53 +777,54 @@ elif page_id == "explorer":
     st.markdown(sec_label("pie-chart", "Distributions"), unsafe_allow_html=True)
     tab1, tab2, tab3, tab4 = st.tabs(["Histograms", "Categorical", "Correlation", "Scatter"])
 
+    _plotly_layout = dict(
+        template='plotly_dark',
+        paper_bgcolor='#0B0B0B',
+        plot_bgcolor='#1F2937',
+        font=dict(family='DM Sans, sans-serif', color='#9CA3AF'),
+        title_font=dict(color='#F9FAFB'),
+        margin=dict(l=40, r=20, t=45, b=40),
+    )
+
     with tab1:
-        fig, axes = dark_fig(w=14, h=4, nrows=1, ncols=3)
-        for ax, col, clr in zip(axes, ['total_bill', 'tip', 'size'],
-                                       [_GOLD, _AMBER, '#a8872a']):
-            ax.hist(df[col], bins=20, color=clr, edgecolor=_BG, linewidth=0.8, alpha=0.9)
-            ax.set_title(col.replace('_', ' ').title())
-            ax.set_xlabel(col); ax.set_ylabel('Count')
-        plt.tight_layout(pad=1.5)
-        st.pyplot(fig); plt.close(fig)
+        cols_hist = st.columns(3)
+        for col_w, feat, clr in zip(cols_hist,
+                                    ['total_bill', 'tip', 'size'],
+                                    [_GOLD, _AMBER, '#a8872a']):
+            fig_h = px.histogram(df, x=feat, nbins=25,
+                                 title=feat.replace('_', ' ').title(),
+                                 color_discrete_sequence=[clr])
+            fig_h.update_layout(**_plotly_layout)
+            col_w.plotly_chart(fig_h, use_container_width=True)
 
     with tab2:
-        fig, axes = dark_fig(w=12, h=8, nrows=2, ncols=2)
-        for ax, cat in zip(axes.flatten(), ['sex', 'smoker', 'day', 'time']):
-            groups = [df[df[cat] == v]['tip'].values for v in df[cat].unique()]
-            bp = ax.boxplot(groups, labels=df[cat].unique(), patch_artist=True,
-                            medianprops=dict(color=_GOLD, linewidth=2),
-                            whiskerprops=dict(color=_BORD), capprops=dict(color=_GOLD, linewidth=1.5),
-                            flierprops=dict(marker='.', color=_DIM, markersize=4))
-            for patch in bp['boxes']:
-                patch.set(facecolor=_CARD, edgecolor=_BORD)
-            ax.set_title(f'Tip by {cat.title()}'); ax.set_ylabel('Tip ($)')
-        plt.tight_layout(pad=1.5)
-        st.pyplot(fig); plt.close(fig)
+        cols_box = st.columns(2)
+        for idx, cat in enumerate(['sex', 'smoker', 'day', 'time']):
+            fig_b = px.box(df, x=cat, y='tip', color=cat,
+                           title=f'Tip by {cat.title()}',
+                           color_discrete_sequence=px.colors.sequential.YlOrBr)
+            fig_b.update_layout(**_plotly_layout, showlegend=False)
+            cols_box[idx % 2].plotly_chart(fig_b, use_container_width=True)
 
     with tab3:
         numeric_df = df[['total_bill', 'tip', 'size']].copy()
         numeric_df['tip_pct'] = (df['tip'] / df['total_bill']) * 100
-        fig, ax = dark_fig(w=7, h=5.5)
-        sns.heatmap(numeric_df.corr(), annot=True, fmt='.2f', cmap=_GOLD_DIV, center=0, ax=ax,
-                    linewidths=1, linecolor=_BG, annot_kws={'color': _IVORY, 'fontsize': 10},
-                    square=True, cbar_kws={'shrink': 0.8})
-        ax.set_title('Feature Correlation')
-        plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
-        plt.setp(ax.get_yticklabels(), rotation=0)
-        plt.tight_layout(); st.pyplot(fig); plt.close(fig)
+        corr_vals = numeric_df.corr().round(2)
+        fig_c = px.imshow(corr_vals, text_auto=True, color_continuous_scale='RdYlGn',
+                          zmin=-1, zmax=1, title='Feature Correlation')
+        fig_c.update_layout(**_plotly_layout)
+        st.plotly_chart(fig_c, use_container_width=True)
 
     with tab4:
-        fig, axes = dark_fig(w=12, h=5, nrows=1, ncols=2)
-        for ax, xcol in zip(axes, ['total_bill', 'size']):
-            ax.scatter(df[xcol], df['tip'], alpha=0.55, color=_MUTED,
-                       edgecolors=_CARD, linewidth=0.5, s=45)
-            m, b = np.polyfit(df[xcol], df['tip'], 1)
-            xs = np.linspace(df[xcol].min(), df[xcol].max(), 100)
-            ax.plot(xs, m * xs + b, color=_GOLD, linewidth=1.5, linestyle='--', alpha=0.85)
-            ax.set_xlabel(xcol.replace('_', ' ').title())
-            ax.set_ylabel('Tip ($)'); ax.set_title(f'{xcol.replace("_", " ").title()} vs Tip')
-        plt.tight_layout(pad=1.5); st.pyplot(fig); plt.close(fig)
+        cols_sc = st.columns(2)
+        for col_w, xcol in zip(cols_sc, ['total_bill', 'size']):
+            fig_s = px.scatter(df, x=xcol, y='tip', opacity=0.5,
+                               trendline='ols',
+                               title=f'{xcol.replace("_", " ").title()} vs Tip',
+                               color_discrete_sequence=[_MUTED],
+                               trendline_color_override=_GOLD)
+            fig_s.update_layout(**_plotly_layout)
+            col_w.plotly_chart(fig_s, use_container_width=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -719,32 +862,39 @@ elif page_id == "compare":
     st.markdown(sec_label("bar-chart-2", "Visual Comparison"), unsafe_allow_html=True)
     tab_r2, tab_rmse, tab_mae = st.tabs(["R² Score", "RMSE", "MAE"])
 
+    _cmp_layout = dict(
+        template='plotly_dark', paper_bgcolor='#0B0B0B', plot_bgcolor='#1F2937',
+        font=dict(family='DM Sans, sans-serif', color='#9CA3AF'),
+        title_font=dict(color='#F9FAFB'),
+        margin=dict(l=40, r=20, t=45, b=100),
+        xaxis_tickangle=-25,
+    )
+
     with tab_r2:
-        fig, ax = dark_fig(w=10, h=4)
-        bars = ax.bar(metrics_df['Model'], metrics_df['R² Score'],
-                      color=rank_golds(len(metrics_df)), edgecolor=_BG, linewidth=0.5)
-        ax.bar_label(bars, fmt='%.4f', padding=4, fontsize=8.5, color=_MUTED, fontfamily='Space Mono')
-        ax.set_ylabel('R² Score'); ax.set_title('R² Score by Model   (higher → better)', pad=12)
-        ax.set_ylim(0, min(1.05, metrics_df['R² Score'].max() * 1.18))
-        plt.xticks(rotation=22, ha='right'); plt.tight_layout(); st.pyplot(fig); plt.close(fig)
+        fig_r2 = px.bar(metrics_df, x='Model', y='R² Score', text='R² Score',
+                        title='R² Score by Model  (higher = better)',
+                        color='R² Score', color_continuous_scale='YlOrBr')
+        fig_r2.update_traces(texttemplate='%{text:.4f}', textposition='outside')
+        fig_r2.update_layout(**_cmp_layout)
+        st.plotly_chart(fig_r2, use_container_width=True)
 
     with tab_rmse:
         rmse_s = metrics_df.sort_values('RMSE ($)')
-        fig, ax = dark_fig(w=10, h=4)
-        bars = ax.bar(rmse_s['Model'], rmse_s['RMSE ($)'],
-                      color=rank_golds(len(rmse_s)), edgecolor=_BG, linewidth=0.5)
-        ax.bar_label(bars, fmt='$%.4f', padding=4, fontsize=8.5, color=_MUTED, fontfamily='Space Mono')
-        ax.set_ylabel('RMSE ($)'); ax.set_title('RMSE by Model   (lower → better)', pad=12)
-        plt.xticks(rotation=22, ha='right'); plt.tight_layout(); st.pyplot(fig); plt.close(fig)
+        fig_rm = px.bar(rmse_s, x='Model', y='RMSE ($)', text='RMSE ($)',
+                        title='RMSE by Model  (lower = better)',
+                        color='RMSE ($)', color_continuous_scale='YlOrBr_r')
+        fig_rm.update_traces(texttemplate='$%{text:.4f}', textposition='outside')
+        fig_rm.update_layout(**_cmp_layout)
+        st.plotly_chart(fig_rm, use_container_width=True)
 
     with tab_mae:
         mae_s = metrics_df.sort_values('MAE ($)')
-        fig, ax = dark_fig(w=10, h=4)
-        bars = ax.bar(mae_s['Model'], mae_s['MAE ($)'],
-                      color=rank_golds(len(mae_s)), edgecolor=_BG, linewidth=0.5)
-        ax.bar_label(bars, fmt='$%.4f', padding=4, fontsize=8.5, color=_MUTED, fontfamily='Space Mono')
-        ax.set_ylabel('MAE ($)'); ax.set_title('MAE by Model   (lower → better)', pad=12)
-        plt.xticks(rotation=22, ha='right'); plt.tight_layout(); st.pyplot(fig); plt.close(fig)
+        fig_ma = px.bar(mae_s, x='Model', y='MAE ($)', text='MAE ($)',
+                        title='MAE by Model  (lower = better)',
+                        color='MAE ($)', color_continuous_scale='YlOrBr_r')
+        fig_ma.update_traces(texttemplate='$%{text:.4f}', textposition='outside')
+        fig_ma.update_layout(**_cmp_layout)
+        st.plotly_chart(fig_ma, use_container_width=True)
 
     best = metrics_df.iloc[0]
     st.markdown(
@@ -773,18 +923,22 @@ elif page_id == "shap":
         st.error("No trained model found. Run `python src/main.py` first.")
         st.stop()
 
-    with st.expander("What is SHAP?"):
+    @st.dialog("What is SHAP?")
+    def _shap_info():
         st.markdown("""
 **SHAP** assigns each feature a *Shapley value* — the average marginal contribution of
 that feature across all possible subsets of features.
 
 | Plot | What it shows |
 |------|---------------|
-| **Feature Importance** | Mean |SHAP| per feature — global ranking |
+| **Feature Importance** | Mean abs(SHAP) per feature — global ranking |
 | **Beeswarm** | Full distribution of SHAP values across all predictions |
 | **Waterfall** | How a *single* prediction was built up from the baseline |
 | **Dependence** | How one feature's SHAP value varies with its raw value |
         """)
+
+    if st.button("What is SHAP?", key="shap_info_btn"):
+        _shap_info()
 
     try:
         import shap
@@ -792,29 +946,34 @@ that feature across all possible subsets of features.
     except ImportError:
         _shap_ok = False
 
+    @st.cache_resource(show_spinner=False)
+    def _get_shap_explainer(_model, _X_train_arr):
+        try:
+            exp = shap.TreeExplainer(_model)
+        except Exception:
+            bg  = shap.sample(_X_train_arr, 80)
+            exp = shap.KernelExplainer(_model.predict, bg)
+        return exp
+
     if st.button("Run SHAP Analysis", type="primary"):
         if not _shap_ok:
             st.error("SHAP not installed. Run: `pip install shap`")
             st.stop()
 
-        with st.spinner("Computing SHAP values… (may take ~15 s)"):
+        with st.spinner("Computing SHAP values… (may take ~15 s on first run, cached after)"):
             from data_preprocessing import DataPreprocessor
             preprocessor = DataPreprocessor()
             X_train, X_test, _, _, _, _ = preprocessor.preprocess_pipeline()
-            X_test_arr = np.array(X_test)
-            try:
-                _exp = shap.TreeExplainer(model)
-                _sv  = _exp.shap_values(X_test_arr)
-            except Exception:
-                _bg  = shap.sample(np.array(X_train), 80)
-                _exp = shap.KernelExplainer(model.predict, _bg)
-                _sv  = _exp.shap_values(X_test_arr)
+            X_test_arr  = np.array(X_test)
+            X_train_arr = np.array(X_train)
+            _exp = _get_shap_explainer(model, X_train_arr)
+            _sv  = _exp.shap_values(X_test_arr)
 
             st.session_state['shap_sv']   = _sv
             st.session_state['shap_base'] = float(np.atleast_1d(_exp.expected_value)[0])
             st.session_state['shap_X']    = X_test_arr
 
-        st.toast("SHAP analysis complete.", icon="✅")
+        st.toast("SHAP analysis complete.")
 
     if _shap_ok and 'shap_sv' in st.session_state:
         sv       = st.session_state['shap_sv']
@@ -886,7 +1045,8 @@ elif page_id == "lime":
         st.error("No trained model found. Run `python src/main.py` first.")
         st.stop()
 
-    with st.expander("What is LIME?"):
+    @st.dialog("What is LIME?")
+    def _lime_info():
         st.markdown("""
 **LIME** fits a simple linear surrogate model locally around a single prediction.
 
@@ -894,6 +1054,9 @@ elif page_id == "lime":
 - **Dim bars**  → feature *decreases* the predicted tip
 - Bar width = strength of influence
         """)
+
+    if st.button("What is LIME?", key="lime_info_btn"):
+        _lime_info()
 
     # ── Live custom prediction ──────────────────────────────────────────────
     st.markdown(sec_label("cpu", "Explain a Custom Prediction"), unsafe_allow_html=True)
@@ -908,6 +1071,14 @@ elif page_id == "lime":
         l_day    = st.selectbox("Day", ['Thur', 'Fri', 'Sat', 'Sun'], key='lday')
         l_time   = st.selectbox("Time", ['Lunch', 'Dinner'], key='ltim')
 
+    @st.cache_resource(show_spinner=False)
+    def _get_lime_explainer(_X_train_arr):
+        from lime.lime_tabular import LimeTabularExplainer
+        return LimeTabularExplainer(
+            training_data=_X_train_arr, feature_names=FEATURE_NAMES,
+            mode='regression', discretize_continuous=True, random_state=42,
+        )
+
     if st.button("Generate LIME Explanation", type="primary"):
         try:
             from lime.lime_tabular import LimeTabularExplainer
@@ -915,14 +1086,11 @@ elif page_id == "lime":
             st.error("LIME not installed. Run: `pip install lime`")
             st.stop()
 
-        with st.spinner("Running LIME…"):
+        with st.spinner("Running LIME… (explainer cached after first run)"):
             from data_preprocessing import DataPreprocessor
             preprocessor = DataPreprocessor()
             X_train, _, _, _, _, _ = preprocessor.preprocess_pipeline()
-            lime_exp = LimeTabularExplainer(
-                training_data=np.array(X_train), feature_names=FEATURE_NAMES,
-                mode='regression', discretize_continuous=True, random_state=42,
-            )
+            lime_exp = _get_lime_explainer(np.array(X_train))
             instance = encode_features(l_bill, l_sex, l_smoker, l_day, l_time, l_size)[0]
             pred_val = max(0.5, model.predict(instance.reshape(1, -1))[0])
             exp = lime_exp.explain_instance(
@@ -930,7 +1098,7 @@ elif page_id == "lime":
                 num_features=len(FEATURE_NAMES), num_samples=1000,
             )
 
-        st.toast(f"LIME explanation ready — ${pred_val:.2f} tip", icon="✅")
+        st.toast(f"LIME explanation ready — ${pred_val:.2f} tip")
         st.markdown(
             f'<div class="pred-hero" style="padding:2rem">'
             f'<div class="pred-eyebrow">LIME Predicted Tip</div>'
@@ -956,9 +1124,17 @@ elif page_id == "lime":
 
         with st.expander("Feature-by-feature breakdown"):
             for label, weight in exp_list:
-                arrow = "↑" if weight >= 0 else "↓"
+                icon_name = "trending-up" if weight >= 0 else "trending-down"
+                icon_color = "invert(75%) sepia(43%) saturate(612%) hue-rotate(5deg) brightness(95%) contrast(89%)" if weight >= 0 else "invert(1) opacity(0.35)"
                 direction = "increases" if weight >= 0 else "decreases"
-                st.markdown(f"**{arrow} {label}** — *{direction}* the predicted tip  `{weight:+.4f}`")
+                st.markdown(
+                    f'<div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0;border-bottom:1px solid #263344;">'
+                    f'<img src="{_LUCIDE_CDN}/{icon_name}.svg" width="13" height="13" style="filter:{icon_color};flex-shrink:0;">'
+                    f'<span style="font-family:\'DM Sans\',sans-serif;font-size:0.84rem;color:#E5E7EB;">'
+                    f'<strong style="color:#D4AF37;">{label}</strong> — <em>{direction}</em> the tip'
+                    f'<code style="margin-left:0.5rem;font-size:0.75rem;color:#9CA3AF;">{weight:+.4f}</code></span></div>',
+                    unsafe_allow_html=True,
+                )
 
     # ── Real-time sample case explanations ─────────────────────────────────
     st.markdown("---")
@@ -996,7 +1172,7 @@ elif page_id == "lime":
                 num_features=len(FEATURE_NAMES), num_samples=1000,
             )
 
-        st.toast(f"Sample {sample_sel} explained — ${pred_s:.2f}", icon="✅")
+        st.toast(f"Sample {sample_sel} explained — ${pred_s:.2f}")
 
         col_a, col_b = st.columns([1, 1.6])
         with col_a:
@@ -1080,16 +1256,6 @@ GridSearchCV hyperparameter tuning. Includes full SHAP and LIME explainability.
         '<span class="pill">matplotlib</span><span class="pill">seaborn</span>',
         unsafe_allow_html=True,
     )
-
-    st.markdown(sec_label("terminal", "How to Run"), unsafe_allow_html=True)
-    st.code("""# 1. Install dependencies
-pip install -r requirements.txt
-
-# 2. Train models (with hyperparameter tuning)
-python src/main.py
-
-# 3. Launch this web app
-streamlit run app.py""", language="bash")
 
     st.markdown(
         '<div class="ibox" style="margin-top:2rem">Dataset: Seaborn/Kaggle Tips Dataset — '
