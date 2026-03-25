@@ -285,7 +285,34 @@ st.markdown("""
 [data-testid="stSlider"] > div > div > div > div { background: var(--gold) !important; }
 
 /* ── Number inputs ── */
-[data-testid="stNumberInput"] input { background: var(--ch) !important; border: 1px solid var(--ch3) !important; border-radius: 0 !important; color: var(--ivory) !important; font-family: var(--font-m) !important; font-size: 0.9rem !important; }
+[data-testid="stNumberInput"] input { background: var(--ch) !important; border: 1px solid var(--ch3) !important; border-radius: 0 !important; color: var(--ivory) !important; font-family: var(--font-m) !important; font-size: 0.9rem !important; cursor: text !important; }
+[data-testid="stNumberInput"] button { cursor: pointer !important; }
+
+/* ── Cursor rules ── */
+/* Clickable: pointer */
+[data-baseweb="select"],
+[data-baseweb="select"] > div,
+[data-baseweb="select"] input,
+[data-baseweb="menu"] li,
+[data-testid="stSlider"] input,
+[data-testid="stSlider"] > div,
+[data-testid="stSlider"] > div > div,
+[data-testid="stSlider"] > div > div > div,
+[data-testid="stSlider"] > div > div > div > div,
+[data-testid="stTabs"] [data-baseweb="tab"],
+[data-testid="stPills"] button,
+[data-testid="stToggle"] [role="switch"],
+.nav-link,
+.stButton > button { cursor: pointer !important; }
+/* Typing fields: text cursor */
+input[type="text"],
+input[type="number"],
+textarea { cursor: text !important; }
+/* Everything else: default arrow */
+label,
+p,
+[data-testid="stMetric"],
+[data-testid="stMarkdownContainer"] { cursor: default !important; }
 
 /* ── Labels ── */
 label, .stSlider label, .stSelectbox label, .stNumberInput label { font-family: var(--font-b) !important; font-size: 0.68rem !important; font-weight: 500 !important; letter-spacing: 0.14em !important; text-transform: uppercase !important; color: var(--iv4) !important; }
@@ -464,10 +491,10 @@ hr { border: none !important; border-top: var(--rule) !important; margin: 2rem 0
 
 # ── Encoding maps ──────────────────────────────────────────────────────────────
 ENCODE = {
-    'sex':    {'Male': 0, 'Female': 1},
+    'sex':    {'Female': 0, 'Male': 1},
     'smoker': {'No': 0, 'Yes': 1},
-    'day':    {'Thur': 0, 'Fri': 1, 'Sat': 2, 'Sun': 3},
-    'time':   {'Lunch': 0, 'Dinner': 1},
+    'day':    {'Fri': 0, 'Sat': 1, 'Sun': 2, 'Thur': 3},
+    'time':   {'Dinner': 0, 'Lunch': 1},
 }
 
 MODEL_FILES = {
@@ -551,14 +578,7 @@ _GOLD_DIV = mcolors.LinearSegmentedColormap.from_list(
 def load_data():
     if os.path.exists(DATA_PATH):
         return pd.read_csv(DATA_PATH)
-    try:
-        import seaborn as _sns
-        df = _sns.load_dataset('tips')
-        os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
-        df.to_csv(DATA_PATH, index=False)
-        return df
-    except Exception:
-        return None
+    return None
 
 
 @st.cache_resource
@@ -587,8 +607,14 @@ def get_model_metrics():
     return metrics
 
 
+@st.cache_resource
+def load_scaler():
+    path = os.path.join(MODELS_DIR, 'scaler.pkl')
+    return joblib.load(path) if os.path.exists(path) else None
+
+
 def encode_features(total_bill, sex, smoker, day, time, size):
-    return np.array([[
+    raw = np.array([[
         total_bill,
         ENCODE['sex'][sex],
         ENCODE['smoker'][smoker],
@@ -596,6 +622,53 @@ def encode_features(total_bill, sex, smoker, day, time, size):
         ENCODE['time'][time],
         size,
     ]])
+    scaler = load_scaler()
+    return scaler.transform(raw) if scaler is not None else raw
+
+
+# ── Auto-retrain when data/tips.csv changes or models are missing ─────────────
+def _data_hash():
+    import hashlib
+    if not os.path.exists(DATA_PATH):
+        return None
+    with open(DATA_PATH, 'rb') as f:
+        return hashlib.md5(f.read()).hexdigest()
+
+
+def _needs_retrain():
+    hash_file = os.path.join(MODELS_DIR, 'data_hash.txt')
+    models_ready = all(
+        os.path.exists(os.path.join(MODELS_DIR, fn))
+        for fn in MODEL_FILES.values()
+    )
+    if not models_ready:
+        return True
+    if not os.path.exists(hash_file):
+        return True
+    with open(hash_file) as f:
+        return f.read().strip() != _data_hash()
+
+
+def _run_retrain():
+    from data_preprocessing import DataPreprocessor
+    from model_training import TipPredictor
+    preprocessor = DataPreprocessor()
+    X_train, X_test, y_train, y_test, _, _ = preprocessor.preprocess_pipeline()
+    predictor = TipPredictor()
+    predictor.train_all_models(X_train, X_test, y_train, y_test, tune=False)
+    predictor.save_all_models()
+    os.makedirs(MODELS_DIR, exist_ok=True)
+    with open(os.path.join(MODELS_DIR, 'data_hash.txt'), 'w') as f:
+        f.write(_data_hash())
+    st.cache_data.clear()
+    st.cache_resource.clear()
+
+
+if 'models_checked' not in st.session_state:
+    if _needs_retrain():
+        with st.spinner('Data changed — retraining models on new dataset...'):
+            _run_retrain()
+    st.session_state['models_checked'] = True
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -666,9 +739,9 @@ if page_id == "predict":
         st.markdown(sec_label("sliders-horizontal", "Bill Details"), unsafe_allow_html=True)
         total_bill = st.number_input(
             "Total Bill ($)",
-            min_value=3.0, max_value=1000.0, value=25.00, step=0.50,
+            min_value=3.07, max_value=200.0, value=25.00, step=0.50,
             format="%.2f",
-            help="Enter the exact total bill amount including tax.",
+            help="Enter the total bill amount. Training data range: $3.07 – $50.81.",
         )
         size = st.slider("Party Size", min_value=1, max_value=6, value=2)
         c1, c2 = st.columns(2)
@@ -754,7 +827,9 @@ if page_id == "predict":
 # ══════════════════════════════════════════════════════════════════════════════
 elif page_id == "explorer":
     st.markdown(pg_title("bar-chart-2", "Data Explorer"), unsafe_allow_html=True)
-    st.markdown('<div class="pg-sub">Explore the Tips dataset used for training — 244 records, 7 features.</div>',
+    _df_meta = load_data()
+    _n_records = len(_df_meta) if _df_meta is not None else 0
+    st.markdown(f'<div class="pg-sub">Explore the Tips dataset used for training — {_n_records:,} records, 7 features.</div>',
                 unsafe_allow_html=True)
 
     df = load_data()
@@ -832,7 +907,7 @@ elif page_id == "explorer":
 # ══════════════════════════════════════════════════════════════════════════════
 elif page_id == "compare":
     st.markdown(pg_title("layers", "Model Comparison"), unsafe_allow_html=True)
-    st.markdown('<div class="pg-sub">Performance of all 6 trained models — tuned with GridSearchCV.</div>',
+    st.markdown('<div class="pg-sub">Performance of all 6 trained models evaluated on the held-out test set.</div>',
                 unsafe_allow_html=True)
 
     with st.spinner("Loading model metrics…"):
@@ -948,12 +1023,17 @@ that feature across all possible subsets of features.
 
     @st.cache_resource(show_spinner=False)
     def _get_shap_explainer(_model, _X_train_arr):
-        try:
-            exp = shap.TreeExplainer(_model)
-        except Exception:
-            bg  = shap.sample(_X_train_arr, 80)
-            exp = shap.KernelExplainer(_model.predict, bg)
-        return exp
+        model_type = type(_model).__name__
+        tree_types   = ('RandomForest', 'GradientBoosting', 'DecisionTree', 'ExtraTree')
+        linear_types = ('LinearRegression', 'Ridge', 'Lasso', 'ElasticNet')
+        if any(t in model_type for t in tree_types):
+            return shap.TreeExplainer(_model)
+        elif any(t in model_type for t in linear_types):
+            bg = shap.maskers.Independent(_X_train_arr, max_samples=200)
+            return shap.LinearExplainer(_model, bg)
+        else:
+            bg = _X_train_arr[:100]
+            return shap.KernelExplainer(_model.predict, bg)
 
     if st.button("Run SHAP Analysis", type="primary"):
         if not _shap_ok:
@@ -1160,10 +1240,7 @@ elif page_id == "lime":
             from data_preprocessing import DataPreprocessor
             preprocessor = DataPreprocessor()
             X_train_s, _, _, _, _, _ = preprocessor.preprocess_pipeline()
-            lime_exp_s = LimeTabularExplainer(
-                training_data=np.array(X_train_s), feature_names=FEATURE_NAMES,
-                mode='regression', discretize_continuous=True, random_state=42,
-            )
+            lime_exp_s = _get_lime_explainer(np.array(X_train_s))
             case_s = SAMPLE_CASES[sample_sel]
             inst_s = encode_features(**case_s)[0]
             pred_s = max(0.5, model.predict(inst_s.reshape(1, -1))[0])
@@ -1213,9 +1290,11 @@ elif page_id == "about":
         unsafe_allow_html=True,
     )
 
-    st.markdown("""
+    _about_df = load_data()
+    _about_n  = len(_about_df) if _about_df is not None else 0
+    st.markdown(f"""
 <div class="stat-grid">
-    <div class="stat-cell"><div class="stat-lbl">Dataset Records</div><div class="stat-val">244</div></div>
+    <div class="stat-cell"><div class="stat-lbl">Dataset Records</div><div class="stat-val">{_about_n:,}</div></div>
     <div class="stat-cell"><div class="stat-lbl">Models Trained</div><div class="stat-val">6</div></div>
     <div class="stat-cell"><div class="stat-lbl">Input Features</div><div class="stat-val">6</div></div>
     <div class="stat-cell"><div class="stat-lbl">XAI Methods</div><div class="stat-val">2</div></div>
@@ -1224,8 +1303,8 @@ elif page_id == "about":
 
     st.markdown(sec_label("file-text", "What This System Does"), unsafe_allow_html=True)
     st.markdown("""
-Predicts restaurant tip amounts based on bill details using 6 ML models with
-GridSearchCV hyperparameter tuning. Includes full SHAP and LIME explainability.
+Predicts restaurant tip amounts based on bill details using 6 ML models trained on
+5,000 records. Includes full SHAP and LIME explainability for model transparency.
 
 **Input features:** total bill · party size · day · meal time · gender · smoker status
     """)
@@ -1234,7 +1313,7 @@ GridSearchCV hyperparameter tuning. Includes full SHAP and LIME explainability.
     st.markdown("""
 | # | Upgrade | Details |
 |---|---------|---------|
-| 1 | **Hyperparameter Tuning** | GridSearchCV over Ridge, Lasso, Decision Tree, Random Forest, Gradient Boosting |
+| 1 | **Hyperparameter Tuning** | GridSearchCV support for Ridge, Lasso, Decision Tree, Random Forest, Gradient Boosting |
 | 2 | **SHAP Explainability** | Real-time global + local plots: bar, beeswarm, waterfall, dependence |
 | 3 | **LIME Explainability** | Real-time per-instance local surrogate explanations |
 | 4 | **Streamlit Web App** | Interactive UI for prediction, EDA, model comparison, and XAI |
@@ -1257,8 +1336,10 @@ GridSearchCV hyperparameter tuning. Includes full SHAP and LIME explainability.
         unsafe_allow_html=True,
     )
 
+    _ibox_df = load_data()
+    _ibox_n  = len(_ibox_df) if _ibox_df is not None else 0
     st.markdown(
-        '<div class="ibox" style="margin-top:2rem">Dataset: Seaborn/Kaggle Tips Dataset — '
-        '244 records · 7 features · no missing values.</div>',
+        f'<div class="ibox" style="margin-top:2rem">Dataset: Tips Dataset — '
+        f'{_ibox_n:,} records · 7 features · no missing values.</div>',
         unsafe_allow_html=True,
     )

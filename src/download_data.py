@@ -8,25 +8,29 @@ import seaborn as sns
 
 def download_tips_dataset():
     """
-    Download the tips dataset. 
-    First tries to use seaborn's built-in dataset (which is the same as Kaggle's).
-    This is the classic restaurant tips dataset used in data science.
+    Load the tips dataset from data/tips.csv.
+    If the file already exists it is used as-is (preserving any custom dataset).
+    Only falls back to seaborn if the file is missing entirely.
     """
-    
+
     # Create data directory if it doesn't exist
     data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
     os.makedirs(data_dir, exist_ok=True)
-    
+
     output_path = os.path.join(data_dir, 'tips.csv')
-    
+
     try:
-        # Load the tips dataset from seaborn (same as Kaggle dataset)
-        print("Downloading tips dataset...")
-        tips_df = sns.load_dataset('tips')
-        
-        # Save to CSV
-        tips_df.to_csv(output_path, index=False)
-        print(f"✓ Dataset downloaded successfully to: {output_path}")
+        # Use existing file if present — never overwrite a custom dataset
+        if os.path.exists(output_path):
+            print(f"✓ Dataset found at: {output_path} — using existing file")
+            tips_df = pd.read_csv(output_path)
+        else:
+            print("Dataset not found locally. Loading from seaborn as fallback...")
+            tips_df = sns.load_dataset('tips')
+            tips_df.to_csv(output_path, index=False)
+            print(f"✓ Dataset saved to: {output_path}")
+
+        print(f"✓ Dataset loaded successfully: {tips_df.shape}")
         
         # Display dataset info
         print("\n" + "="*60)

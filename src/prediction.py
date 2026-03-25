@@ -20,7 +20,11 @@ class TipPredictionSystem:
     def __init__(self, model_path=None):
         """Initialize prediction system"""
         self.models_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'models')
-        
+
+        # Load scaler saved during training
+        scaler_path = os.path.join(self.models_dir, 'scaler.pkl')
+        self.scaler = joblib.load(scaler_path) if os.path.exists(scaler_path) else None
+
         if model_path:
             self.model = joblib.load(model_path)
             self.model_name = os.path.basename(model_path).replace('.pkl', '').replace('_', ' ').title()
@@ -47,12 +51,11 @@ class TipPredictionSystem:
             return None
     
     def encode_input(self, sex, smoker, day, time):
-        """Encode categorical inputs"""
-        # Encoding mappings (based on LabelEncoder from preprocessing)
-        sex_map = {'Male': 0, 'Female': 1}
+        """Encode categorical inputs — must match LabelEncoder alphabetical order."""
+        sex_map    = {'Female': 0, 'Male': 1}
         smoker_map = {'No': 0, 'Yes': 1}
-        day_map = {'Thur': 0, 'Fri': 1, 'Sat': 2, 'Sun': 3}
-        time_map = {'Lunch': 0, 'Dinner': 1}
+        day_map    = {'Fri': 0, 'Sat': 1, 'Sun': 2, 'Thur': 3}
+        time_map   = {'Dinner': 0, 'Lunch': 1}
         
         sex_encoded = sex_map.get(sex, 0)
         smoker_encoded = smoker_map.get(smoker, 0)
@@ -92,9 +95,11 @@ class TipPredictionSystem:
         # Encode categorical features
         sex_enc, smoker_enc, day_enc, time_enc = self.encode_input(sex, smoker, day, time)
         
-        # Create feature array
+        # Create feature array and apply scaler if available
         features = np.array([[total_bill, sex_enc, smoker_enc, day_enc, time_enc, size]])
-        
+        if self.scaler is not None:
+            features = self.scaler.transform(features)
+
         # Make prediction
         prediction = self.model.predict(features)[0]
         

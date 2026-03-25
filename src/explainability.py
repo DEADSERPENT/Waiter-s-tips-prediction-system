@@ -266,24 +266,33 @@ class TipExplainer:
         axes[0].set_title("Mean |SHAP| Value\n(Global Importance)", fontsize=12)
         axes[0].set_xlabel("Mean |SHAP value|")
 
-        # Right: built-in importance (tree models only)
+        # Right: built-in importance (tree) or |coefficients| (linear)
         if hasattr(self.model, 'feature_importances_'):
-            builtin = self.model.feature_importances_
+            scores = self.model.feature_importances_
+            xlabel = "Importance score"
+            title  = "Built-in Feature Importance\n(from model)"
+        elif hasattr(self.model, 'coef_'):
+            scores = np.abs(self.model.coef_).flatten()
+            xlabel = "|Coefficient| value"
+            title  = "Linear Model Coefficients\n(absolute value)"
+        else:
+            scores = None
+
+        if scores is not None:
             builtin_df = pd.DataFrame({
                 'Feature': self.feature_names,
-                'Importance': builtin,
-            }).sort_values('Importance', ascending=False)
-
-            axes[1].barh(builtin_df['Feature'], builtin_df['Importance'],
+                'Score':   scores,
+            }).sort_values('Score', ascending=False)
+            axes[1].barh(builtin_df['Feature'], builtin_df['Score'],
                          color='#e67e22', edgecolor='white')
             axes[1].invert_yaxis()
-            axes[1].set_title("Built-in Feature Importance\n(from model)", fontsize=12)
-            axes[1].set_xlabel("Importance score")
+            axes[1].set_title(title, fontsize=12)
+            axes[1].set_xlabel(xlabel)
         else:
-            axes[1].text(0.5, 0.5, "Not available\n(linear model)",
+            axes[1].text(0.5, 0.5, "Not available\nfor this model type",
                          ha='center', va='center', fontsize=12,
                          transform=axes[1].transAxes)
-            axes[1].set_title("Built-in Feature Importance", fontsize=12)
+            axes[1].set_title("Feature Importance", fontsize=12)
 
         fig.suptitle("SHAP vs Built-in Feature Importance", fontsize=14, y=1.02)
         plt.tight_layout()

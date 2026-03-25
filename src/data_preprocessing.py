@@ -146,12 +146,21 @@ class DataPreprocessor:
         return X_train, X_test, y_train, y_test
     
     def scale_features(self, X_train, X_test):
-        """Scale features using StandardScaler"""
+        """Scale features using StandardScaler and save the fitted scaler."""
         X_train_scaled = self.scaler.fit_transform(X_train)
-        X_test_scaled = self.scaler.transform(X_test)
-        
+        X_test_scaled  = self.scaler.transform(X_test)
+
+        # Save scaler so prediction modules can apply the same transform
+        import joblib
+        scaler_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), 'models', 'scaler.pkl'
+        )
+        os.makedirs(os.path.dirname(scaler_path), exist_ok=True)
+        joblib.dump(self.scaler, scaler_path)
+
         print("✓ Features scaled")
-        
+        print(f"✓ Scaler saved: {scaler_path}")
+
         return X_train_scaled, X_test_scaled
     
     def preprocess_pipeline(self):
