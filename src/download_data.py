@@ -66,7 +66,7 @@ def download_tips_dataset():
     except Exception as e:
         print(f"✗ Error downloading dataset: {e}")
         print("\nAlternative: You can manually download from:")
-        print("https://www.kaggle.com/datasets/jsphyg/tipping")
+        print("https://www.kaggle.com/datasets/samarthahv/waiters-tips-predictor")
         print(f"and place it in: {output_path}")
         return None
 
