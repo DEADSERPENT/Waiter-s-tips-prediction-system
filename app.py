@@ -80,12 +80,10 @@ def sec_label(icon: str, text: str) -> str:
 
 # ── Navigation config ─────────────────────────────────────────────────────────
 NAV_ITEMS = [
-    ("predict",  "target",          "Predict Tip"),
-    ("explorer", "bar-chart-2",     "Data Explorer"),
-    ("compare",  "layers",          "Model Comparison"),
-    ("shap",     "activity",        "SHAP Explainability"),
-    ("lime",     "zap",             "LIME Explanation"),
-    ("about",    "info",            "About"),
+    ("predict",  "target",      "Predict Tip"),
+    ("explorer", "bar-chart-2", "Data Explorer"),
+    ("compare",  "layers",      "Model Comparison"),
+    ("about",    "info",        "About"),
 ]
 
 # ── Custom CSS ────────────────────────────────────────────────────────────────
@@ -498,12 +496,9 @@ ENCODE = {
 }
 
 MODEL_FILES = {
-    'Random Forest':     'random_forest.pkl',
-    'Gradient Boosting': 'gradient_boosting.pkl',
-    'Decision Tree':     'decision_tree.pkl',
-    'Ridge Regression':  'ridge_regression.pkl',
-    'Lasso Regression':  'lasso_regression.pkl',
-    'Linear Regression': 'linear_regression.pkl',
+    'Random Forest': 'random_forest.pkl',
+    'ID3 Tree':      'id3_tree.pkl',
+    'CART Tree':     'cart_tree.pkl',
 }
 
 SAMPLE_CASES = [
@@ -983,303 +978,6 @@ elif page_id == "compare":
         unsafe_allow_html=True,
     )
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# PAGE 4 — SHAP EXPLAINABILITY
-# ══════════════════════════════════════════════════════════════════════════════
-elif page_id == "shap":
-    st.markdown(pg_title("activity", "SHAP Explainability"), unsafe_allow_html=True)
-    st.markdown(
-        '<div class="pg-sub">SHapley Additive exPlanations — global and local feature attribution.</div>',
-        unsafe_allow_html=True,
-    )
-
-    if model is None:
-        st.error("No trained model found. Run `python src/main.py` first.")
-        st.stop()
-
-    @st.dialog("What is SHAP?")
-    def _shap_info():
-        st.markdown("""
-**SHAP** assigns each feature a *Shapley value* — the average marginal contribution of
-that feature across all possible subsets of features.
-
-| Plot | What it shows |
-|------|---------------|
-| **Feature Importance** | Mean abs(SHAP) per feature — global ranking |
-| **Beeswarm** | Full distribution of SHAP values across all predictions |
-| **Waterfall** | How a *single* prediction was built up from the baseline |
-| **Dependence** | How one feature's SHAP value varies with its raw value |
-        """)
-
-    if st.button("What is SHAP?", key="shap_info_btn"):
-        _shap_info()
-
-    try:
-        import shap
-        _shap_ok = True
-    except ImportError:
-        _shap_ok = False
-
-    @st.cache_resource(show_spinner=False)
-    def _get_shap_explainer(_model, _X_train_arr):
-        model_type = type(_model).__name__
-        tree_types   = ('RandomForest', 'GradientBoosting', 'DecisionTree', 'ExtraTree')
-        linear_types = ('LinearRegression', 'Ridge', 'Lasso', 'ElasticNet')
-        if any(t in model_type for t in tree_types):
-            return shap.TreeExplainer(_model)
-        elif any(t in model_type for t in linear_types):
-            bg = shap.maskers.Independent(_X_train_arr, max_samples=200)
-            return shap.LinearExplainer(_model, bg)
-        else:
-            bg = _X_train_arr[:100]
-            return shap.KernelExplainer(_model.predict, bg)
-
-    if st.button("Run SHAP Analysis", type="primary"):
-        if not _shap_ok:
-            st.error("SHAP not installed. Run: `pip install shap`")
-            st.stop()
-
-        with st.spinner("Computing SHAP values… (may take ~15 s on first run, cached after)"):
-            from data_preprocessing import DataPreprocessor
-            preprocessor = DataPreprocessor()
-            X_train, X_test, _, _, _, _ = preprocessor.preprocess_pipeline()
-            X_test_arr  = np.array(X_test)
-            X_train_arr = np.array(X_train)
-            _exp = _get_shap_explainer(model, X_train_arr)
-            _sv  = _exp.shap_values(X_test_arr)
-
-            st.session_state['shap_sv']   = _sv
-            st.session_state['shap_base'] = float(np.atleast_1d(_exp.expected_value)[0])
-            st.session_state['shap_X']    = X_test_arr
-
-        st.toast("SHAP analysis complete.")
-
-    if _shap_ok and 'shap_sv' in st.session_state:
-        sv       = st.session_state['shap_sv']
-        base_val = st.session_state['shap_base']
-        X_arr    = st.session_state['shap_X']
-
-        t1, t2, t3, t4 = st.tabs(["Feature Importance", "Beeswarm", "Waterfall", "Dependence"])
-
-        with t1:
-            st.markdown(sec_label("activity", "Mean |SHAP| — Global Importance"), unsafe_allow_html=True)
-            plt.figure(figsize=(10, 4))
-            shap.summary_plot(sv, X_arr, feature_names=FEATURE_NAMES,
-                              plot_type="bar", show=False, color=_GOLD)
-            fig = plt.gcf(); fig.patch.set_facecolor(_BG)
-            plt.gca().set_facecolor(_CARD)
-            plt.gca().tick_params(colors=_MUTED, labelsize=9)
-            plt.gca().spines['bottom'].set_color(_BORD)
-            plt.gca().spines['left'].set_color(_BORD)
-            plt.tight_layout(); st.pyplot(fig); plt.close(fig)
-
-        with t2:
-            st.markdown(sec_label("git-branch", "SHAP Value Distribution — Beeswarm"), unsafe_allow_html=True)
-            plt.figure(figsize=(10, 4))
-            shap.summary_plot(sv, X_arr, feature_names=FEATURE_NAMES, show=False)
-            fig = plt.gcf(); fig.patch.set_facecolor(_BG)
-            plt.tight_layout(); st.pyplot(fig); plt.close(fig)
-
-        with t3:
-            st.markdown(sec_label("trending-down", "Waterfall — Single Prediction Breakdown"), unsafe_allow_html=True)
-            sample_idx = st.slider("Sample index", 0, len(X_arr) - 1, 0, key="shap_wf_idx")
-            try:
-                exp_obj = shap.Explanation(
-                    values=sv[sample_idx], base_values=base_val,
-                    data=X_arr[sample_idx], feature_names=FEATURE_NAMES,
-                )
-                plt.figure(figsize=(10, 5))
-                shap.waterfall_plot(exp_obj, show=False)
-                fig = plt.gcf(); fig.patch.set_facecolor(_BG)
-                plt.tight_layout(); st.pyplot(fig); plt.close(fig)
-            except Exception as e:
-                st.warning(f"Waterfall unavailable for this SHAP version: {e}")
-
-        with t4:
-            st.markdown(sec_label("scatter-chart", "Dependence Plot — Feature Interaction"), unsafe_allow_html=True)
-            dep_feat = st.selectbox("Feature", FEATURE_NAMES, key="shap_dep_feat")
-            fig, ax = dark_fig(w=10, h=4)
-            shap.dependence_plot(dep_feat, sv, X_arr,
-                                 feature_names=FEATURE_NAMES, ax=ax, show=False)
-            _style_ax(ax); plt.tight_layout(); st.pyplot(fig); plt.close(fig)
-    else:
-        st.markdown(
-            '<div class="ibox">Click <strong>Run SHAP Analysis</strong> above to generate live plots.</div>',
-            unsafe_allow_html=True,
-        )
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# PAGE 5 — LIME EXPLANATION
-# ══════════════════════════════════════════════════════════════════════════════
-elif page_id == "lime":
-    st.markdown(pg_title("zap", "LIME Explanation"), unsafe_allow_html=True)
-    st.markdown(
-        '<div class="pg-sub">Local Interpretable Model-agnostic Explanations — '
-        'understand a single prediction in plain terms.</div>',
-        unsafe_allow_html=True,
-    )
-
-    if model is None:
-        st.error("No trained model found. Run `python src/main.py` first.")
-        st.stop()
-
-    @st.dialog("What is LIME?")
-    def _lime_info():
-        st.markdown("""
-**LIME** fits a simple linear surrogate model locally around a single prediction.
-
-- **Gold bars** → feature *increases* the predicted tip
-- **Dim bars**  → feature *decreases* the predicted tip
-- Bar width = strength of influence
-        """)
-
-    if st.button("What is LIME?", key="lime_info_btn"):
-        _lime_info()
-
-    # ── Live custom prediction ──────────────────────────────────────────────
-    st.markdown(sec_label("cpu", "Explain a Custom Prediction"), unsafe_allow_html=True)
-    lc1, lc2, lc3 = st.columns(3)
-    with lc1:
-        l_bill   = st.number_input("Total Bill ($)", 3.0, 55.0, 20.0, 0.5)
-        l_size   = st.number_input("Party Size", 1, 6, 2)
-    with lc2:
-        l_sex    = st.selectbox("Gender", ['Male', 'Female'], key='lsex')
-        l_smoker = st.selectbox("Smoker", ['No', 'Yes'], key='lsmk')
-    with lc3:
-        l_day    = st.selectbox("Day", ['Thur', 'Fri', 'Sat', 'Sun'], key='lday')
-        l_time   = st.selectbox("Time", ['Lunch', 'Dinner'], key='ltim')
-
-    @st.cache_resource(show_spinner=False)
-    def _get_lime_explainer(_X_train_arr):
-        from lime.lime_tabular import LimeTabularExplainer
-        return LimeTabularExplainer(
-            training_data=_X_train_arr, feature_names=FEATURE_NAMES,
-            mode='regression', discretize_continuous=True, random_state=42,
-        )
-
-    if st.button("Generate LIME Explanation", type="primary"):
-        try:
-            from lime.lime_tabular import LimeTabularExplainer
-        except ImportError:
-            st.error("LIME not installed. Run: `pip install lime`")
-            st.stop()
-
-        with st.spinner("Running LIME… (explainer cached after first run)"):
-            from data_preprocessing import DataPreprocessor
-            preprocessor = DataPreprocessor()
-            X_train, _, _, _, _, _ = preprocessor.preprocess_pipeline()
-            lime_exp = _get_lime_explainer(np.array(X_train))
-            instance = encode_features(l_bill, l_sex, l_smoker, l_day, l_time, l_size)[0]
-            pred_val = max(0.5, model.predict(instance.reshape(1, -1))[0])
-            exp = lime_exp.explain_instance(
-                data_row=instance, predict_fn=model.predict,
-                num_features=len(FEATURE_NAMES), num_samples=1000,
-            )
-
-        st.toast(f"LIME explanation ready — ${pred_val:.2f} tip")
-        st.markdown(
-            f'<div class="pred-hero" style="padding:2rem">'
-            f'<div class="pred-eyebrow">LIME Predicted Tip</div>'
-            f'<div class="pred-num" style="font-size:4rem">${pred_val:.2f}</div>'
-            f'<div class="pred-pct">{(pred_val/l_bill*100):.1f}% of bill</div>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-
-        exp_list = exp.as_list()
-        lbls     = [x[0] for x in exp_list]
-        wgts     = [x[1] for x in exp_list]
-        clrs     = [_GOLD if w >= 0 else _DIM for w in wgts]
-        edgs     = [_AMBER if w >= 0 else _BORD for w in wgts]
-
-        fig, ax = dark_fig(w=9, h=max(4, len(lbls) * 0.65))
-        ax.barh(lbls, wgts, color=clrs, edgecolor=edgs, linewidth=0.7, height=0.6)
-        ax.axvline(0, color=_BORD, linewidth=1)
-        ax.set_xlabel("LIME Weight")
-        ax.set_title(f"Feature Contributions — Predicted ${pred_val:.2f}", pad=10)
-        ax.invert_yaxis()
-        plt.tight_layout(); st.pyplot(fig); plt.close(fig)
-
-        with st.expander("Feature-by-feature breakdown"):
-            for label, weight in exp_list:
-                icon_name = "trending-up" if weight >= 0 else "trending-down"
-                icon_color = "invert(75%) sepia(43%) saturate(612%) hue-rotate(5deg) brightness(95%) contrast(89%)" if weight >= 0 else "invert(1) opacity(0.35)"
-                direction = "increases" if weight >= 0 else "decreases"
-                st.markdown(
-                    f'<div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0;border-bottom:1px solid #263344;">'
-                    f'<img src="{_LUCIDE_CDN}/{icon_name}.svg" width="13" height="13" style="filter:{icon_color};flex-shrink:0;">'
-                    f'<span style="font-family:\'DM Sans\',sans-serif;font-size:0.84rem;color:#E5E7EB;">'
-                    f'<strong style="color:#D4AF37;">{label}</strong> — <em>{direction}</em> the tip'
-                    f'<code style="margin-left:0.5rem;font-size:0.75rem;color:#9CA3AF;">{weight:+.4f}</code></span></div>',
-                    unsafe_allow_html=True,
-                )
-
-    # ── Real-time sample case explanations ─────────────────────────────────
-    st.markdown("---")
-    st.markdown(sec_label("layers", "Explain a Predefined Sample Case"), unsafe_allow_html=True)
-
-    def _fmt_case(i):
-        c = SAMPLE_CASES[i]
-        return f"Sample {i}  ·  ${c['total_bill']} bill · {c['day']} {c['time']} · party of {c['size']}"
-
-    sample_sel = st.selectbox(
-        "Pick a sample", options=list(range(len(SAMPLE_CASES))),
-        format_func=_fmt_case, key="lime_sample_sel",
-    )
-
-    if st.button("Explain Sample", key="lime_sample_btn", type="primary"):
-        try:
-            from lime.lime_tabular import LimeTabularExplainer
-        except ImportError:
-            st.error("LIME not installed. Run: `pip install lime`")
-            st.stop()
-
-        with st.spinner("Running LIME on sample…"):
-            from data_preprocessing import DataPreprocessor
-            preprocessor = DataPreprocessor()
-            X_train_s, _, _, _, _, _ = preprocessor.preprocess_pipeline()
-            lime_exp_s = _get_lime_explainer(np.array(X_train_s))
-            case_s = SAMPLE_CASES[sample_sel]
-            inst_s = encode_features(**case_s)[0]
-            pred_s = max(0.5, model.predict(inst_s.reshape(1, -1))[0])
-            exp_s  = lime_exp_s.explain_instance(
-                data_row=inst_s, predict_fn=model.predict,
-                num_features=len(FEATURE_NAMES), num_samples=1000,
-            )
-
-        st.toast(f"Sample {sample_sel} explained — ${pred_s:.2f}")
-
-        col_a, col_b = st.columns([1, 1.6])
-        with col_a:
-            st.markdown(
-                f'<div class="pred-hero" style="padding:1.5rem">'
-                f'<div class="pred-eyebrow">Sample {sample_sel}</div>'
-                f'<div class="pred-num" style="font-size:3.5rem">${pred_s:.2f}</div>'
-                f'<div class="pred-pct">{(pred_s/case_s["total_bill"]*100):.1f}% of '
-                f'${case_s["total_bill"]} bill</div></div>',
-                unsafe_allow_html=True,
-            )
-            st.markdown("**Case details**")
-            for k, v in case_s.items():
-                st.markdown(f"- **{k}**: {v}")
-        with col_b:
-            exp_list_s = exp_s.as_list()
-            lbls_s = [x[0] for x in exp_list_s]
-            wgts_s = [x[1] for x in exp_list_s]
-            clrs_s = [_GOLD if w >= 0 else _DIM for w in wgts_s]
-            edgs_s = [_AMBER if w >= 0 else _BORD for w in wgts_s]
-
-            fig, ax = dark_fig(w=8, h=max(3.5, len(lbls_s) * 0.6))
-            ax.barh(lbls_s, wgts_s, color=clrs_s, edgecolor=edgs_s, linewidth=0.7, height=0.6)
-            ax.axvline(0, color=_BORD, linewidth=1)
-            ax.set_xlabel("LIME Weight")
-            ax.set_title(f"Sample {sample_sel} — Feature Contributions", pad=8)
-            ax.invert_yaxis()
-            plt.tight_layout(); st.pyplot(fig); plt.close(fig)
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE 6 — ABOUT
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1295,42 +993,40 @@ elif page_id == "about":
     st.markdown(f"""
 <div class="stat-grid">
     <div class="stat-cell"><div class="stat-lbl">Dataset Records</div><div class="stat-val">{_about_n:,}</div></div>
-    <div class="stat-cell"><div class="stat-lbl">Models Trained</div><div class="stat-val">6</div></div>
+    <div class="stat-cell"><div class="stat-lbl">Models Trained</div><div class="stat-val">3</div></div>
     <div class="stat-cell"><div class="stat-lbl">Input Features</div><div class="stat-val">6</div></div>
-    <div class="stat-cell"><div class="stat-lbl">XAI Methods</div><div class="stat-val">2</div></div>
+    <div class="stat-cell"><div class="stat-lbl">Algorithm Family</div><div class="stat-val">Trees</div></div>
 </div>
 """, unsafe_allow_html=True)
 
     st.markdown(sec_label("file-text", "What This System Does"), unsafe_allow_html=True)
     st.markdown("""
-Predicts restaurant tip amounts based on bill details using 6 ML models trained on
-5,000 records. Includes full SHAP and LIME explainability for model transparency.
+Predicts restaurant tip amounts based on bill details using three decision-tree-based
+ML models trained on 1,000 synthetic records that mirror real restaurant data.
 
 **Input features:** total bill · party size · day · meal time · gender · smoker status
     """)
 
-    st.markdown(sec_label("check-square", "Upgrades Implemented"), unsafe_allow_html=True)
+    st.markdown(sec_label("check-square", "Models Implemented"), unsafe_allow_html=True)
     st.markdown("""
-| # | Upgrade | Details |
-|---|---------|---------|
-| 1 | **Hyperparameter Tuning** | GridSearchCV support for Ridge, Lasso, Decision Tree, Random Forest, Gradient Boosting |
-| 2 | **SHAP Explainability** | Real-time global + local plots: bar, beeswarm, waterfall, dependence |
-| 3 | **LIME Explainability** | Real-time per-instance local surrogate explanations |
-| 4 | **Streamlit Web App** | Interactive UI for prediction, EDA, model comparison, and XAI |
+| # | Model | Algorithm | Criterion |
+|---|-------|-----------|-----------|
+| 1 | **ID3 Tree** | Decision Tree | Friedman MSE (information-gain style) |
+| 2 | **CART Tree** | Decision Tree | Squared Error (standard CART) |
+| 3 | **Random Forest** | Ensemble of 200 CART trees | Squared Error |
     """)
 
     st.markdown(sec_label("box", "Models"), unsafe_allow_html=True)
     st.markdown(
-        '<span class="pill">Linear Regression</span><span class="pill">Ridge</span>'
-        '<span class="pill">Lasso</span><span class="pill">Decision Tree</span>'
-        '<span class="pill">Random Forest</span><span class="pill">Gradient Boosting</span>',
+        '<span class="pill">ID3 Tree</span>'
+        '<span class="pill">CART Tree</span>'
+        '<span class="pill">Random Forest</span>',
         unsafe_allow_html=True,
     )
 
     st.markdown(sec_label("code-2", "Tech Stack"), unsafe_allow_html=True)
     st.markdown(
         '<span class="pill">Python</span><span class="pill">scikit-learn</span>'
-        '<span class="pill">SHAP</span><span class="pill">LIME</span>'
         '<span class="pill">Streamlit</span><span class="pill">pandas</span>'
         '<span class="pill">matplotlib</span><span class="pill">seaborn</span>',
         unsafe_allow_html=True,
@@ -1339,7 +1035,7 @@ Predicts restaurant tip amounts based on bill details using 6 ML models trained 
     _ibox_df = load_data()
     _ibox_n  = len(_ibox_df) if _ibox_df is not None else 0
     st.markdown(
-        f'<div class="ibox" style="margin-top:2rem">Dataset: Tips Dataset — '
-        f'{_ibox_n:,} records · 7 features · no missing values.</div>',
+        f'<div class="ibox" style="margin-top:2rem">Dataset: Synthetic Tips Dataset — '
+        f'{_ibox_n:,} records · 6 features · no missing values.</div>',
         unsafe_allow_html=True,
     )
