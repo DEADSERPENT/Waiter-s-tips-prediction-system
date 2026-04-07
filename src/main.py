@@ -1,7 +1,7 @@
 """
 Main Pipeline — Complete End-to-End Execution
 Runs the entire tips prediction system pipeline.
-Models: ID3 Tree, CART Tree, Random Forest
+Models: CART Tree, Random Forest
 """
 
 import os
@@ -50,9 +50,9 @@ def run_complete_pipeline():
     visualizer.plot_scatter_relationships(preprocessor.df)
     print("[OK] EDA visualizations complete")
 
-    # Step 4: Model Training (ID3, CART, Random Forest)
+    # Step 4: Model Training (CART, Random Forest)
     print("\n" + "="*70)
-    print("STEP 4: MODEL TRAINING — ID3, CART, RANDOM FOREST")
+    print("STEP 4: MODEL TRAINING — CART, RANDOM FOREST")
     print("="*70)
     predictor = TipPredictor()
     results   = predictor.train_all_models(X_train, X_test, y_train, y_test)
@@ -99,7 +99,7 @@ def run_complete_pipeline():
     print("="*70)
     print(f"\nSummary:")
     print(f"  Dataset         : {len(preprocessor.df)} records")
-    print(f"  Models Trained  : {len(results)} (ID3 Tree, CART Tree, Random Forest)")
+    print(f"  Models Trained  : {len(results)} (CART Tree, Random Forest)")
     print(f"  Best Model      : {best_name}")
     print(f"  Best R² Score   : {results[best_name]['R2_Score']:.4f}")
     print(f"  Best RMSE       : ${results[best_name]['RMSE']:.2f}")

@@ -1,8 +1,7 @@
 """
 Model Training Module
-Trains three decision-tree-based models for tip prediction:
-  - ID3 Tree  (criterion='friedman_mse')
-  - CART Tree (criterion='squared_error')
+Trains two decision-tree-based models for tip prediction:
+  - CART Tree    (criterion='squared_error')
   - Random Forest
 Best hyperparameters are pre-tuned and hard-coded for the 1,000-row dataset.
 """
@@ -23,7 +22,7 @@ from src.data_preprocessing import DataPreprocessor
 
 class TipPredictor:
     """
-    Trains and evaluates ID3 Tree, CART Tree, and Random Forest
+    Trains and evaluates CART Tree and Random Forest
     regressors for waiter tip prediction.
     """
 
@@ -38,22 +37,13 @@ class TipPredictor:
     # ------------------------------------------------------------------
     def initialize_models(self):
         """
-        Three models with best-known hyperparameters for a ~1,000-row
+        Two models with best-known hyperparameters for a ~1,000-row
         tips dataset with 6 features.
 
-        ID3 Tree  — uses Friedman MSE split criterion (variance-reduction
-                    with an improvement threshold, akin to information gain).
-        CART Tree — standard MSE split (Classification and Regression Tree).
-        Random Forest — ensemble of 200 CART trees.
+        CART Tree     — standard MSE split (Classification and Regression Tree).
+        Random Forest — ensemble of 200 CART trees with feature sub-sampling.
         """
         self.models = {
-            'ID3 Tree': DecisionTreeRegressor(
-                criterion        = 'friedman_mse',
-                max_depth        = 7,
-                min_samples_split= 15,
-                min_samples_leaf = 5,
-                random_state     = 42,
-            ),
             'CART Tree': DecisionTreeRegressor(
                 criterion        = 'squared_error',
                 max_depth        = 5,

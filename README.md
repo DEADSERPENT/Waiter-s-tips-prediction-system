@@ -28,7 +28,7 @@ streamlit run app.py
 
 ## Dataset
 
-5000 restaurant transactions · 7 features · no missing values · avg tip $2.99 (~15%)
+5000 restaurant transactions · 6 features · no missing values · avg tip $2.99 (~15%)
 
 | Feature | Type | Description |
 |---|---|---|

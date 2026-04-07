@@ -497,7 +497,6 @@ ENCODE = {
 
 MODEL_FILES = {
     'Random Forest': 'random_forest.pkl',
-    'ID3 Tree':      'id3_tree.pkl',
     'CART Tree':     'cart_tree.pkl',
 }
 
@@ -824,7 +823,7 @@ elif page_id == "explorer":
     st.markdown(pg_title("bar-chart-2", "Data Explorer"), unsafe_allow_html=True)
     _df_meta = load_data()
     _n_records = len(_df_meta) if _df_meta is not None else 0
-    st.markdown(f'<div class="pg-sub">Explore the Tips dataset used for training — {_n_records:,} records, 7 features.</div>',
+    st.markdown(f'<div class="pg-sub">Explore the Tips dataset used for training — {_n_records:,} records, 6 features.</div>',
                 unsafe_allow_html=True)
 
     df = load_data()
@@ -993,7 +992,7 @@ elif page_id == "about":
     st.markdown(f"""
 <div class="stat-grid">
     <div class="stat-cell"><div class="stat-lbl">Dataset Records</div><div class="stat-val">{_about_n:,}</div></div>
-    <div class="stat-cell"><div class="stat-lbl">Models Trained</div><div class="stat-val">3</div></div>
+    <div class="stat-cell"><div class="stat-lbl">Models Trained</div><div class="stat-val">2</div></div>
     <div class="stat-cell"><div class="stat-lbl">Input Features</div><div class="stat-val">6</div></div>
     <div class="stat-cell"><div class="stat-lbl">Algorithm Family</div><div class="stat-val">Trees</div></div>
 </div>
@@ -1011,14 +1010,12 @@ ML models trained on 1,000 synthetic records that mirror real restaurant data.
     st.markdown("""
 | # | Model | Algorithm | Criterion |
 |---|-------|-----------|-----------|
-| 1 | **ID3 Tree** | Decision Tree | Friedman MSE (information-gain style) |
-| 2 | **CART Tree** | Decision Tree | Squared Error (standard CART) |
-| 3 | **Random Forest** | Ensemble of 200 CART trees | Squared Error |
+| 1 | **CART Tree** | Decision Tree | Squared Error (standard CART) |
+| 2 | **Random Forest** | Ensemble of 200 CART trees | Squared Error |
     """)
 
     st.markdown(sec_label("box", "Models"), unsafe_allow_html=True)
     st.markdown(
-        '<span class="pill">ID3 Tree</span>'
         '<span class="pill">CART Tree</span>'
         '<span class="pill">Random Forest</span>',
         unsafe_allow_html=True,
